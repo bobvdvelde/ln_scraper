@@ -18,6 +18,7 @@ import datetime
 from lxml.html import fromstring
 import os
 import pickle
+from selenium.webdriver.common.keys import Keys
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level="INFO")
@@ -91,6 +92,7 @@ def main(driver, country=None, source=None, fromdate=None, todate=None, query="a
 
         driver          = go_and_select_source(driver, source)
         driver          = push_go(driver)
+        driver.switch_to_default_content()
         driver, results = search(driver, fromdate, todate, query)
 
         return results
@@ -216,7 +218,18 @@ def _focus_search_main(driver):
 
 def _go_set_query(driver, fromdate, todate, query):
     time.sleep(1)
-    retry(6, driver.find_element_by_xpath, '//option[@value="from"]').click()
+    def setdate():
+        try: 
+            driver.find_element_by_xpath('//option[@value="from"]').click()
+            assert driver.find_element('id','fromDate1').is_displayed()
+        except: 
+            driver.find_element('id','dateSelector1').click()
+            driver.find_element('id','dateSelector1').send_keys('Date is between .')
+            driver.find_element('id','dateSelector1').send_keys(Keys.ENTER)
+            assert driver.find_element('id','fromDate1').is_displayed() 
+            
+    
+    retry(6, setdate)
     time.sleep(2)
     makestring  = lambda x: "%02d/%02d/%s" %(x.day, x.month, x.year)
     driver.find_element('id','fromDate1').send_keys(makestring(fromdate ))
@@ -376,8 +389,13 @@ def get_countries(driver, country=None):
         return countries
 
     if not country == "All Countries":
-        countries[country].click()
+        try: countries[country].click()
+        except: 
+            driver.find_element('id','countryId').click()
+            driver.find_element('id','countryId').send_keys(country)
+            driver.find_element('id','countryId').send_keys(Keys.ENTER)
         driver = _go_to_main(driver)
+        return driver, countries
 
     if country.capitalize() not in countries:
         driver = _go_to_main(driver)
