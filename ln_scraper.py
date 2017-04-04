@@ -7,7 +7,7 @@ for research purposes by subscribers to this service. DO NOT USE OUTSIDE A PAID
 SUBSCRIPTION. 
 
 """
-
+import optparse
 import logging
 import time
 import random
@@ -33,10 +33,10 @@ def retry(attempts, func, *args, **kwargs):
     for i in range(attempts):
         try:
             return func(*args, **kwargs)
-        except:
-            logger.debug("Failed attempt {i} of {func}, args: {args}, kwargs {kwargs}".format(**locals()))
+        except Exception as e:
+            logger.debug("Failed attempt {i} of {func}, args: {args}, kwargs {kwargs}: {e}".format(**locals()))
             time.sleep(1)
-            pass
+            return "FAILED"
 
 def timeout():
     ''' applies timeout based on globals '''
@@ -96,6 +96,7 @@ def main(driver, country=None, source=None, fromdate=None, todate=None, query="a
         driver, results = search(driver, fromdate, todate, query)
 
         return results
+    return "Unknown parameters"
 
 def _querystring(country,sources):
     return "{country}-{sources}".format(**locals())
@@ -117,10 +118,12 @@ def search_back_by_day( country, sources, startdate=None, enddate=datetime.datet
     logger.info("starting at {startdate}".format(**locals()))
 
     while startdate > enddate:
-        logger.info("Now at {startdate}")
+        logger.info("Now at {startdate}".format(**locals()))
         for source in tqdm.tqdm(sources, disable=not VERBOSE, desc="getting %s" %startdate):
+            resultfile = '{source}_{startdate}.pkl'.format(**locals())
+            if resultfile in os.listdir('data'): continue
             results = main(driver, country, source, todate=startdate, query=query)
-            pickle.dump(results, open('data/{source}_{startdate}.pkl'.format(**locals()),'wb'))
+            pickle.dump(results, open(os.path.join('data',resultsfile) ,'wb'))
         startdate = startdate - datetime.timedelta(days=1)
         status[_querystring(country,sources)] = startdate
         pickle.dump(status, open(STATUSFILE,'wb'))
@@ -463,3 +466,40 @@ def scan_pages_for_sources(driver):
             driver, change = paginate_sources(driver)
     return all_sources
 
+def start_spagetti_code():
+    
+    usage = "ln_parser.py [OPTIONS] QUERY"
+    parser = optparse.OptionParser(usage=usage)
+
+    parser.add_option('-c','--country', action='store', dest='country', help='Country to select sources or content from', default='All Countries')
+    parser.add_option('-s','--sources', action='store', dest='sources', 
+                        help='semi-colon seperated sources, e.g. "Die Welt; Der Spiegel"')
+    parser.add_option('-r','--retries', action='store',      dest='retries', help='number of times to retry', default=1)
+    parser.add_option('-d','--debug',   action='store_true', dest='debug',   help='set logging to debug')
+    parser.add_option('-v','--verbose', action='store_true', dest='verbose', help='set logging to info')
+    
+    options, queryterms = parser.parse_args()
+
+    if options.debug:
+        logger.setLevel("DEBUG")
+        VERBOSE = True
+    elif options.verbose:
+        logger.setLevel("INFO")
+        VERBOSE = True
+    else:
+        logger.setLevel("WARN")
+        VERBOSE = False
+       
+    if not options.sources:
+        print("No sources specified, printing available sources for '%s':" %options.country)
+        driver = _make_driver()
+        sources = retry(int(options.retries), main, driver, country=options.country)
+        for key in sources.keys():
+            print(key)
+    
+    else:
+        sources = [s.strip() for s in options.sources.split(';')]
+        retry(int(options.retries), search_back_by_day, country=options.country, sources=sources, query=' OR '.join(queryterms))
+
+if __name__ == '__main__':
+    start_spagetti_code()
