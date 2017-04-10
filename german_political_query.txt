@@ -1,0 +1,2 @@
+"CDU" OR "CSU" OR "SPD" OR "LINKE" OR "GRÜNE" OR "LKR" OR "FDP" OR "AfD" OR "FREIE WÄHLER" OR "PIRATEN" OR "NPD" OR "FAMILIE" OR "ÖDP" OR "Die PARTEI" OR "Angela Merkel" OR "Horst Seehofer" OR "Martin Schulz" OR "Katja Kipping" OR "Bernd Riexinger" OR "Simone Peter" OR "Cem Özdemir" OR "Bernd Lucke" OR "Christian Lindner" OR "Frauke Petry" OR "Jörg Meuthen" OR "Hubert Aiwanger" OR "Stefan Körner" OR "Frank Franz" OR "Maria Hartmann" OR "Sebastian Frankenberger" OR "Martin Sonneborn"
+

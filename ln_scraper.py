@@ -52,7 +52,7 @@ def _make_driver(driver='Firefox', **kwargs):
         drivername = 'geckodriver'
 
     ostype = platform.system()
-    
+     
     driverpath = "./{drivername}_{ostype}".format(**locals())
 
     kwargs.update({"executable_path" : driverpath })
@@ -106,7 +106,7 @@ def search_back_by_day( country, sources, startdate=None, enddate=datetime.datet
         os.mkdir('data')
 
     if STATUSFILE in os.listdir('.'):
-        status = pickle.load(open(STATUSFILE))
+        status = pickle.load(open(STATUSFILE,'rb'))
         startdate = status.get(_querystring(country,sources), None)
     else:
         status = {}
@@ -123,11 +123,11 @@ def search_back_by_day( country, sources, startdate=None, enddate=datetime.datet
             resultfile = '{source}_{startdate}.pkl'.format(**locals())
             if resultfile in os.listdir('data'): continue
             results = main(driver, country, source, todate=startdate, query=query)
-            pickle.dump(results, open(os.path.join('data',resultsfile) ,'wb'))
+            pickle.dump(results, open(os.path.join('data',resultfile) ,'wb'))
         startdate = startdate - datetime.timedelta(days=1)
         status[_querystring(country,sources)] = startdate
         pickle.dump(status, open(STATUSFILE,'wb'))
-
+    driver.quit()
     
 
 def initialize_sources_page(driver):    
@@ -247,7 +247,7 @@ def paginate_search(driver):
     driver = _focus_search_main(driver)
 
     while nextpage:
-        driver, results = get_results(driver)
+        driver, results = retry(10, get_results,driver)
         all_results.extend(results)
         
         try:    nextpage = retry(3,driver.find_element_by_xpath,'//a[@class="icon la-TriangleRight "]')
@@ -255,7 +255,7 @@ def paginate_search(driver):
             nextpage = None 
             break
         
-        if nextpage: nextpage.click()
+        if nextpage and nextpage!="FAILED": nextpage.click()
         else: break
 
     return driver, all_results        
@@ -269,7 +269,7 @@ def get_results(driver):
         else:
             return byline, ""
 
-    retry(3, driver.find_element_by_xpath, '//ol[@class="nexisresult"]//h2/a')
+    retry(10, driver.find_element_by_xpath, '//ol[@class="nexisresult"]//h2/a')
     
     # Result properties
     result_urls    = [ ref.get_property('href') for ref in driver.find_elements_by_xpath('//ol[@class="nexisresult"]//h2/a')]
@@ -287,12 +287,17 @@ def get_results(driver):
                     hits       = nhits ) for 
                     url, source, byline, date, nhits in zip(result_urls, result_source, result_bylines, result_dates, result_nhits)
                 ]
-
+    time.sleep(1)
     
     for n, result in enumerate(tqdm.tqdm(results,disable=not VERBOSE, desc="parsing results")):
         driver, page_content = get_result(driver, n)
         result.update(page_content)
         driver = _focus_search_main(driver)
+        refreshable = 0
+        while retry(10, driver.find_element_by_xpath, '//ol[@class="nexisresult"]//h2/a') == "FAILED":
+            driver.refresh()
+            if refreshable == 10: break
+            refreshable +=1
     time.sleep(1)
     return driver, results 
 
@@ -304,7 +309,7 @@ def get_result(driver, resultnumber):
     driver = _focus_search_main(driver)
     retry(10, driver.find_element, 'id','results')
     time.sleep(5)
-    retry(10, driver.find_element_by_xpath('//ol[@class="nexisresult"]//h2/a'))
+    retry(10, driver.find_element_by_xpath, '//ol[@class="nexisresult"]//h2/a' )
     links  = [ ref for ref in driver.find_elements_by_xpath('//ol[@class="nexisresult"]//h2/a')]
     item = retry(10, links.__getitem__,resultnumber)
     item.click()
@@ -322,6 +327,8 @@ def get_result(driver, resultnumber):
     # return home
     driver.back()    
     time.sleep(1)
+    if retry(10, driver.find_element_by_xpath, '//ol[@class="nexisresult"]//h2/a') == "FAILED":
+        driver.back()
     return driver, result
 
 def _get_caps(driver):
@@ -477,7 +484,7 @@ def start_spagetti_code():
     parser.add_option('-r','--retries', action='store',      dest='retries', help='number of times to retry', default=1)
     parser.add_option('-d','--debug',   action='store_true', dest='debug',   help='set logging to debug')
     parser.add_option('-v','--verbose', action='store_true', dest='verbose', help='set logging to info')
-    
+
     options, queryterms = parser.parse_args()
 
     if options.debug:
@@ -499,7 +506,17 @@ def start_spagetti_code():
     
     else:
         sources = [s.strip() for s in options.sources.split(';')]
-        retry(int(options.retries), search_back_by_day, country=options.country, sources=sources, query=' OR '.join(queryterms))
+        query   = ' OR '.join(queryterms)
+        
+        # report settings to user
+        print("Searching for:\n\t'{query}'\n".format(**locals()))
+        print("List of sources to consult:")
+        for source in sources:
+            print("- '{source}'".format(**locals()))
+        if int(options.retries)==1:
+            search_back_by_day(country=options.country, sources=sources, query=' OR '.join(queryterms))
+        else:
+            retry(int(options.retries), search_back_by_day, country=options.country, sources=sources, query=' OR '.join(queryterms))
 
 if __name__ == '__main__':
     start_spagetti_code()
