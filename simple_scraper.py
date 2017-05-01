@@ -1,7 +1,4 @@
 import sys
-import re
-import os.path
-import glob
 import time
 from selenium import webdriver
 import platform
@@ -10,8 +7,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
-
-from IPython import embed
 
 
 def make_driver(driver='Firefox', **kwargs):
@@ -138,7 +133,6 @@ def go_to_search_page(driver, name):
 
 def wait_for_completion(driver):
     "Wait for the download to start and return the OK button"
-    n_files = len(glob.glob(os.path.expanduser('~/Downloads/*.HTML')))
 
     # wait for the download to start
     do_when_loaded(driver, (By.CLASS_NAME, 'save-click'),
@@ -165,14 +159,14 @@ def download(driver):
         # click the download button
         btn_xpath = '//a[@title="Download Delivery"]'
         btn = do_when_loaded(driver, (By.XPATH, btn_xpath),
-                            driver.find_element_by_xpath, btn_xpath)
+                             driver.find_element_by_xpath, btn_xpath)
         btn.click()
 
         driver.switch_to_default_content()
         do_when_loaded(driver, (By.ID, 'mainFrame'), driver.switch_to_frame, 'mainFrame')
 
         rangebox = do_when_loaded(driver, (By.ID, 'rangetextbox'),
-                                driver.find_element_by_id, 'rangetextbox')
+                                  driver.find_element_by_id, 'rangetextbox')
 
         rangebox.click()
         rangebox.send_keys(f'{start}-{end}')
@@ -193,7 +187,7 @@ def download(driver):
         # click the download button
         download_xpath = '//img[@title="Download"]'
         download_btn = do_when_loaded(driver, (By.XPATH, download_xpath),
-                                    driver.find_element_by_xpath, download_xpath)
+                                      driver.find_element_by_xpath, download_xpath)
         download_btn.click()
 
         # wait for the download to start and dismiss the popup
